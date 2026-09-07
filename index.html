@@ -1,0 +1,2539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Blobsearch.com - Protoplasmic Search & Gel Laboratory</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    code, pre, .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fadeIn {
+      animation: fadeIn 0.3s ease-out forwards;
+    }
+    @keyframes wobble {
+      0%, 100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
+      50% { border-radius: 30% 60% 70% 30% / 50% 60% 30% 60%; }
+    }
+    .animate-wobble {
+      animation: wobble 4s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-white min-h-screen selection:bg-[#2ecc71] selection:text-black">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // --- SOUND ENGINE ---
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+      }
+      init() {
+        if (!this.ctx && typeof window !== 'undefined') {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) this.ctx = new AudioContext();
+        }
+      }
+      isEnabled() { return this.enabled; }
+      toggleSound() {
+        this.enabled = !this.enabled;
+        return this.enabled;
+      }
+      playSquish() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(320, this.ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(70, this.ctx.currentTime + 0.18);
+          gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.18);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.18);
+        } catch (e) {}
+      }
+      playPop() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(650, this.ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(140, this.ctx.currentTime + 0.09);
+          gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.09);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.09);
+        } catch (e) {}
+      }
+      playBounce(force = 1) {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(110 + force * 20, this.ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(380 + force * 40, this.ctx.currentTime + 0.15);
+          gain.gain.setValueAtTime(Math.min(0.4, 0.15 * force), this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.15);
+        } catch (e) {}
+      }
+      playScan() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(800, this.ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(1200, this.ctx.currentTime + 0.25);
+          gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.25);
+        } catch (e) {}
+      }
+    }
+    const soundFx = new SoundEngine();
+
+    // --- DATA STORE ---
+    const BLOB_FACTS = [
+      {
+        id: 1,
+        title: 'Total Adaptation & Flow',
+        summary: 'A true biological blob has no rigid skeletal constraint. It compresses and seeps through almost any structural barrier.',
+        detail: 'Unlike rigid vertebrates, blob structures utilize protoplasmic streaming. They can alter their cellular density from liquid state (sol) to semi-solid jelly (gel) in milliseconds to pass through microscopic fissures thinner than razor edges.',
+        category: 'Physics'
+      },
+      {
+        id: 2,
+        title: 'Hidden Slime Intelligence',
+        summary: 'Slime molds (Physarum Polycephalum) navigate complex mazes perfectly without possessing a brain or central nervous system.',
+        detail: 'By leaving chemical slime trails behind, Physarum remembers where it has already explored. In university experiments, slime mold networks recreated the exact optimal railway maps of Tokyo and London within hours, beating supercomputer routing algorithms!',
+        category: 'Intelligence'
+      },
+      {
+        id: 3,
+        title: 'Cosmic Immortality',
+        summary: 'Blob-like organisms sent into space survived direct cosmic solar radiation and zero-gravity vacuum exposure.',
+        detail: 'Extremophile slime and amoeboid colonies can enter cryptobiosis—freezing their metabolic functions completely—for decades or centuries. If extraterrestrial life lands on Earth, mathematical probability indicates it will be glowing extraterrestrial gelatin rather than grey bipeds.',
+        category: 'Cosmic'
+      },
+      {
+        id: 4,
+        title: '720 Distinct Sexes',
+        summary: 'Physarum Polycephalum possesses over 720 different mating types encoded in its genetic structure.',
+        detail: 'Because blobs do not use rigid binary reproductive organs, any individual slime mold can mate with almost any other colony it encounters in the wild, maximizing genetic diversity across terrestrial ecosystems.',
+        category: 'Biology'
+      },
+      {
+        id: 5,
+        title: 'Rapid Cellular Fusion',
+        summary: 'When two separate blobs of the same species meet, they don’t fight—they instantly merge into one giant super-organism.',
+        detail: 'A single continuous slime mold cell can grow to cover multiple square meters in weight and size while remaining a single, synchronized coenocytic entity with millions of synchronized pulsing nuclei.',
+        category: 'Physics'
+      }
+    ];
+
+    const INITIAL_BOOGIE_EVIDENCE = [
+      {
+        id: 'boogie-001',
+        title: 'Sub-Bed Anomaly Alpha',
+        location: 'Midnight Bedroom Sector 4',
+        date: '3:04 AM, Last Tuesday',
+        description: 'Thermal camera recorded a glowing 4-foot protoplasmic mass shape-shifting from under the rug into a squishy corner shape. Confirmed Boogie Blob entity.',
+        threatLevel: 'Medium Goo',
+        thermalTemp: '14.2°C (Cold Slime Signature)',
+        imageUrl: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=600&q=80',
+        verified: true
+      },
+      {
+        id: 'boogie-002',
+        title: 'The Closet Corner Wobble',
+        location: 'Old Storage Vault',
+        date: '2:15 AM, Friday Night',
+        description: 'A dark fluid silhouette observed absorbing loose socks and emitting soft rhythmic squishing vibrations before vanishing behind the drywall.',
+        threatLevel: 'Mild Squish',
+        thermalTemp: '11.8°C',
+        imageUrl: 'https://images.unsplash.com/photo-1541701494587-cb58502866ab?auto=format&fit=crop&w=600&q=80',
+        verified: true
+      },
+      {
+        id: 'boogie-003',
+        title: 'Attic Ectoplasm Seep',
+        location: 'Pine Ridge Observatory',
+        date: '00:00 Midnight, Full Moon',
+        description: 'Bioluminescent green gel dripped upward against gravity along ceiling beams. Chemical analysis matched high-density Boogie gelatin.',
+        threatLevel: 'Extreme Slime',
+        thermalTemp: '8.5°C (Extreme Cryo-Goo)',
+        imageUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=600&q=80',
+        verified: true
+      }
+    ];
+
+    const BLOB_QUIZ = [
+      {
+        id: 1,
+        question: 'How do slime molds remember paths without having a brain?',
+        options: [
+          'They send WiFi signals to other spores',
+          'They leave a chemical slime trail that acts as a physical memory map',
+          'They read magnetic field lines from Earth',
+          'They just guess randomly every time'
+        ],
+        correctIndex: 1,
+        explanation: 'Slime molds leave an extracellular slime trail as they move. When they encounter their own previous slime trail, they recognize it and avoid re-exploring dead ends!'
+      },
+      {
+        id: 2,
+        question: 'What happens when two separate single-cell blobs of the same species meet?',
+        options: [
+          'They engage in mortal combat',
+          'They bounce off each other like rubber balls',
+          'They merge into one giant single super-cell organism',
+          'They explode into dust'
+        ],
+        correctIndex: 2,
+        explanation: 'Slime molds are coenocytic! Their membranes fuse instantly, combining all their cell cytoplasm and nuclei into a single giant multi-nucleated super-blob!'
+      },
+      {
+        id: 3,
+        question: 'Why are Boogies classified as supreme blobs in Blob Philosophy?',
+        options: [
+          'Because they are made of rigid steel',
+          'Because they possess fluid shapeshifting structures that evade geometric boxes',
+          'Because they wear top hats',
+          'Because they are standard geometric squares'
+        ],
+        correctIndex: 1,
+        explanation: 'Boogies represent the pinnacle of fluid adaptability—unbound by corners, squares, or rigid physical forms!'
+      }
+    ];
+
+    // --- COMPONENT: BLOB FRAME ---
+    function BlobFrame({ imageUrl, title, subtext }) {
+      return (
+        <div className="relative group w-full max-w-[280px]">
+          <div className="relative w-64 h-64 mx-auto rounded-3xl overflow-hidden border-4 border-slate-800 shadow-2xl transition-all duration-500 group-hover:scale-105 group-hover:border-indigo-500/80">
+            <img src={imageUrl} alt={title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent opacity-80" />
+            <div className="absolute bottom-4 left-4 right-4 text-left">
+              <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800">
+                {subtext}
+              </span>
+              <h4 className="text-sm font-extrabold text-white mt-1 uppercase tracking-tight">{title}</h4>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // --- HEADER ---
+    function Header({ activeTab, onTabChange, onOpenShare, user, onOpenBounceIn }) {
+      const [isSoundOn, setIsSoundOn] = useState(soundFx.isEnabled());
+      const toggleSound = () => {
+        const newState = soundFx.toggleSound();
+        setIsSoundOn(newState);
+      };
+
+      return (
+        <header className="bg-slate-900/90 border-b border-slate-800 sticky top-0 z-50 backdrop-blur-xl">
+          <div className="max-w-[1000px] mx-auto px-4 sm:px-6 py-3 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="logo flex items-center gap-3 cursor-pointer" onClick={() => { soundFx.playPop(); onTabChange('home'); }}>
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-xl font-black shadow-lg shadow-indigo-500/30 border border-indigo-400/40 animate-wobble">
+                🦠
+              </div>
+              <div className="text-left">
+                <div className="text-2xl font-black tracking-tight text-white uppercase flex items-center gap-1">
+                  BLOBSEARCH<span className="text-indigo-400 text-3xl leading-none">.</span>COM
+                </div>
+                <div className="text-[10px] text-indigo-300/80 font-mono tracking-wider uppercase font-semibold">
+                  Viscous Search & Gel Laboratory
+                </div>
+              </div>
+            </div>
+
+            <nav className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              {[
+                { id: 'home', label: 'Home', icon: '🏠' },
+                { id: 'facts', label: 'Facts', icon: '💡' },
+                { id: 'boogie', label: 'Boogie Vault', icon: '👁️' },
+                { id: 'games', label: 'Games', icon: '🎮' },
+                { id: 'lab', label: 'Blob Lab', icon: '🧪' }
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => { soundFx.playSquish(); onTabChange(tab.id); }}
+                  className={`px-3.5 py-2 rounded-full font-extrabold text-xs uppercase tracking-wider transition-all duration-200 cursor-pointer flex items-center gap-1.5 border ${
+                    activeTab === tab.id
+                      ? 'bg-indigo-600 text-white border-indigo-400/40 shadow-lg shadow-indigo-500/25 scale-105'
+                      : 'bg-slate-950/60 text-slate-300 border-slate-800 hover:bg-slate-800 hover:text-white'
+                  }`}
+                >
+                  <span>{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+            </nav>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  soundFx.playPop();
+                  const blob = new Blob([document.documentElement.outerHTML], { type: 'text/html;charset=utf-8' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'blobsearch_standalone.html';
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-2 bg-indigo-600/90 hover:bg-indigo-600 text-white rounded-full transition-all text-xs font-bold cursor-pointer border border-indigo-400/40 shadow-md"
+                title="Download this entire self-contained application file"
+              >
+                💾 <span className="hidden md:inline">Save Code</span>
+              </button>
+
+              <button
+                onClick={() => { soundFx.playPop(); onOpenShare(); }}
+                className="p-2 bg-slate-950/80 hover:bg-slate-800 text-indigo-300 border border-slate-800 rounded-full transition-all text-xs font-bold cursor-pointer"
+                title="Share Website"
+              >
+                🔗
+              </button>
+
+              <button
+                onClick={() => { soundFx.playBounce(); onOpenBounceIn(); }}
+                className={`px-3.5 py-2 rounded-full transition-all text-xs font-extrabold cursor-pointer border flex items-center gap-1.5 ${
+                  user
+                    ? 'bg-emerald-950 text-emerald-300 border-emerald-500/40 hover:bg-emerald-900'
+                    : 'bg-indigo-950 text-indigo-300 border-indigo-500/40 hover:bg-indigo-900'
+                }`}
+              >
+                <span>{user ? '🟢' : '🔑'}</span>
+                <span>{user ? user.username : 'Bounce In'}</span>
+              </button>
+
+              <button
+                onClick={toggleSound}
+                className="p-2 bg-slate-950/80 hover:bg-slate-800 text-indigo-300 border border-slate-800 rounded-full transition-all text-xs font-bold cursor-pointer"
+                title={isSoundOn ? 'Mute Sound FX' : 'Enable Sound FX'}
+              >
+                {isSoundOn ? '🔊' : '🔇'}
+              </button>
+            </div>
+          </div>
+        </header>
+      );
+    }
+
+    // --- TAB 1: HOME ---
+    function HomeTab({ onNavigate }) {
+      const canvasRef = useRef(null);
+      const [squishCount, setSquishCount] = useState(0);
+      const [searchQuery, setSearchQuery] = useState('');
+      const [searchResults, setSearchResults] = useState(null);
+
+      useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        let animFrame;
+        const width = (canvas.width = 440);
+        const height = (canvas.height = 220);
+
+        let initialBlobs = [
+          { id: 1, x: 120, y: 110, vx: 1.2, vy: -0.8, radius: 36, colorStart: '#6366f1', colorEnd: '#a855f7', wobbleOffset: 0 },
+          { id: 2, x: 280, y: 130, vx: -0.9, vy: 1.1, radius: 42, colorStart: '#10b981', colorEnd: '#06b6d4', wobbleOffset: 2 },
+          { id: 3, x: 200, y: 80, vx: 0.8, vy: 0.9, radius: 28, colorStart: '#f43f5e', colorEnd: '#fb923c', wobbleOffset: 4 }
+        ];
+
+        let time = 0;
+
+        const renderCanvas = () => {
+          time += 0.03;
+          ctx.clearRect(0, 0, width, height);
+
+          initialBlobs.forEach((b) => {
+            b.x += b.vx;
+            b.y += b.vy;
+
+            if (b.x < b.radius || b.x > width - b.radius) b.vx *= -1;
+            if (b.y < b.radius || b.y > height - b.radius) b.vy *= -1;
+
+            ctx.save();
+            ctx.translate(b.x, b.y);
+
+            const grad = ctx.createLinearGradient(-b.radius, -b.radius, b.radius, b.radius);
+            grad.addColorStop(0, b.colorStart);
+            grad.addColorStop(1, b.colorEnd);
+
+            ctx.beginPath();
+            const points = 10;
+            for (let i = 0; i <= points; i++) {
+              const angle = (i / points) * Math.PI * 2;
+              const wobble = Math.sin(time * 3 + i + b.wobbleOffset) * (b.radius * 0.15);
+              const r = b.radius + wobble;
+              const px = Math.cos(angle) * r;
+              const py = Math.sin(angle) * r;
+              if (i === 0) ctx.moveTo(px, py);
+              else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+
+            ctx.fillStyle = grad;
+            ctx.shadowColor = b.colorStart;
+            ctx.shadowBlur = 18;
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Eyes
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(-b.radius * 0.25, -b.radius * 0.15, b.radius * 0.2, 0, Math.PI * 2);
+            ctx.arc(b.radius * 0.25, -b.radius * 0.15, b.radius * 0.2, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.arc(-b.radius * 0.25, -b.radius * 0.15, b.radius * 0.1, 0, Math.PI * 2);
+            ctx.arc(b.radius * 0.25, -b.radius * 0.15, b.radius * 0.1, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+          });
+
+          animFrame = requestAnimationFrame(renderCanvas);
+        };
+
+        renderCanvas();
+        return () => cancelAnimationFrame(animFrame);
+      }, []);
+
+      const handleSearch = (e) => {
+        e.preventDefault();
+        if (!searchQuery.trim()) return;
+        soundFx.playPop();
+        setSearchResults(`Viscous Index matched "${searchQuery}": 99.8% organic protoplasmic fluid high-density gel detected in sector Alpha-9!`);
+      };
+
+      return (
+        <div className="space-y-8 animate-fadeIn">
+          {/* HERO */}
+          <div className="text-center py-10 sm:py-14 bg-slate-900/80 border border-slate-800 rounded-3xl p-6 sm:p-10 backdrop-blur-xl shadow-2xl relative overflow-hidden">
+            <div className="inline-flex items-center gap-2 bg-indigo-950/80 text-indigo-300 px-4 py-1.5 rounded-full border border-indigo-500/30 text-xs font-mono font-bold uppercase mb-4">
+              ✨ Organic Gel Index Engine
+            </div>
+            <h1 className="text-4xl sm:text-6xl font-black uppercase tracking-tight text-white mb-3">
+              BLOBSEARCH<span className="text-indigo-400">.COM</span>
+            </h1>
+            <p className="text-slate-300 text-base sm:text-lg max-w-xl mx-auto leading-relaxed font-medium">
+              The World's Premiere Fluid Protoplasmic Search Engine & Viscous Gel Laboratory
+            </p>
+
+            {/* SEARCH BOX */}
+            <form onSubmit={handleSearch} className="max-w-xl mx-auto mt-6 bg-slate-950 p-2 rounded-full border border-slate-800 shadow-2xl flex items-center">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search the viscous web for blobs..."
+                className="w-full bg-transparent px-5 py-3 text-white font-mono text-xs sm:text-sm focus:outline-none"
+              />
+              <button type="submit" className="bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold uppercase px-6 py-3 rounded-full text-xs tracking-wider transition-all shadow-lg shadow-indigo-500/25 shrink-0">
+                SEARCH
+              </button>
+            </form>
+
+            {/* QUICK SEARCH SUGGESTIONS */}
+            <div className="flex flex-wrap justify-center items-center gap-2 mt-3 max-w-xl mx-auto">
+              {[
+                '🌾 Physarum Railway',
+                '🛌 Boogie Sub-Bed Anomaly',
+                '🧬 720 Mating Types',
+                '🌌 Cosmic Cryo-Goo',
+                '⚡ Protoplasmic Streaming'
+              ].map((pill) => (
+                <button
+                  key={pill}
+                  type="button"
+                  onClick={() => {
+                    const clean = pill.replace(/^[^\w]+/, '').trim();
+                    setSearchQuery(clean);
+                    soundFx.playPop();
+                    setSearchResults(`Viscous Index matched "${clean}": 99.8% organic protoplasmic fluid high-density gel detected in sector Alpha-9!`);
+                  }}
+                  className="bg-slate-950/80 hover:bg-slate-800 text-indigo-300 border border-slate-800 hover:border-indigo-500/50 px-3 py-1 rounded-full text-[11px] font-mono transition-all cursor-pointer"
+                >
+                  {pill}
+                </button>
+              ))}
+            </div>
+
+            {searchResults && (
+              <div className="max-w-xl mx-auto mt-4 bg-slate-950/90 border border-indigo-500/40 p-4 rounded-2xl text-left font-mono text-xs text-indigo-300 animate-fadeIn flex justify-between items-start">
+                <div>🔍 {searchResults}</div>
+                <button onClick={() => setSearchResults(null)} className="text-slate-400 hover:text-white font-bold ml-2">✕</button>
+              </div>
+            )}
+
+            {/* INTERACTIVE POKE BLOB */}
+            <div className="mt-8 pt-8 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-center gap-6">
+              <div
+                onClick={() => { soundFx.playSquish(); setSquishCount((s) => s + 1); }}
+                className="w-32 h-32 bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 rounded-full animate-wobble flex items-center justify-center text-4xl shadow-2xl cursor-pointer hover:scale-110 active:scale-95 transition-transform border-4 border-white/80"
+              >
+                🦠
+              </div>
+              <div className="text-center sm:text-left space-y-1">
+                <span className="text-xs font-mono font-bold text-indigo-400 uppercase block">Interactive Gel Surface</span>
+                <h3 className="text-xl font-extrabold text-white uppercase">Poke The Master Blob</h3>
+                <p className="text-xs text-slate-400 font-mono">Poked {squishCount} times • Elasticity 100%</p>
+              </div>
+            </div>
+          </div>
+
+          {/* CANVAS STAGE */}
+          <div className="bg-slate-900/80 p-6 sm:p-8 rounded-3xl border border-slate-800 shadow-2xl backdrop-blur-xl flex flex-col items-center gap-4">
+            <div className="text-center space-y-1">
+              <span className="text-xs font-mono font-bold text-indigo-400 uppercase">Live Protoplasm Simulation</span>
+              <h3 className="text-2xl font-extrabold uppercase text-white">Floating Gel Organisms</h3>
+            </div>
+            <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 overflow-hidden max-w-full">
+              <canvas ref={canvasRef} className="block rounded-xl max-w-full" />
+            </div>
+          </div>
+
+          {/* PHILOSOPHY CARD */}
+          <div className="bg-slate-900/80 p-8 sm:p-10 rounded-3xl border border-slate-800 shadow-2xl backdrop-blur-xl flex flex-col md:flex-row gap-8 items-center">
+            <div className="flex-1 space-y-3 text-left">
+              <div className="inline-flex items-center gap-1.5 bg-indigo-950/60 text-indigo-300 px-3.5 py-1.5 rounded-full border border-indigo-500/30 text-xs font-bold uppercase">
+                💡 Blob Philosophy
+              </div>
+              <h3 className="text-2xl sm:text-3xl font-extrabold uppercase text-white">Why Blobs Matter</h3>
+              <p className="text-slate-200 text-base leading-relaxed font-medium">
+                Blobs are the ultimate form of adaptability. Unbound by rigid bones or artificial corners, a blob flows through any obstacle, reshapes itself constantly, and remains resilient.
+              </p>
+            </div>
+            <div className="flex-1 flex justify-center">
+              <BlobFrame imageUrl="https://images.unsplash.com/photo-1541701494587-cb58502866ab?auto=format&fit=crop&w=600&q=80" title="Pure Gel Flow" subtext="Biological Fluid State" />
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // --- TAB 2: FACTS ---
+    function BlobFactsTab({ onOpenDiploma }) {
+      const [currentQuizIndex, setCurrentQuizIndex] = useState(0);
+      const [selectedOption, setSelectedOption] = useState(null);
+      const [score, setScore] = useState(0);
+      const [quizCompleted, setQuizCompleted] = useState(false);
+
+      const mazeCanvasRef = useRef(null);
+      const [mazeStep, setMazeStep] = useState(0);
+      const [mazeRunning, setMazeRunning] = useState(false);
+
+      useEffect(() => {
+        const canvas = mazeCanvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const width = (canvas.width = 500);
+        const height = (canvas.height = 240);
+        const foodNodes = [
+          { x: 60, y: 120, label: 'Start Oat' },
+          { x: 220, y: 50, label: 'Node A' },
+          { x: 250, y: 190, label: 'Node B' },
+          { x: 440, y: 120, label: 'Target Oat' },
+        ];
+
+        let timer;
+        const drawMaze = () => {
+          ctx.clearRect(0, 0, width, height);
+
+          ctx.strokeStyle = 'rgba(46, 204, 113, 0.15)';
+          ctx.lineWidth = 1;
+          for (let x = 0; x < width; x += 25) {
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
+          }
+          for (let y = 0; y < height; y += 25) {
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+          }
+
+          const progress = mazeStep / 100;
+          ctx.strokeStyle = '#2ecc71';
+          ctx.lineWidth = 8;
+          ctx.lineCap = 'round';
+          ctx.shadowColor = '#2ecc71';
+          ctx.shadowBlur = 12;
+
+          if (progress > 0) {
+            ctx.beginPath();
+            ctx.moveTo(foodNodes[0].x, foodNodes[0].y);
+            ctx.lineTo(foodNodes[0].x + (foodNodes[1].x - foodNodes[0].x) * Math.min(1, progress * 2), foodNodes[0].y + (foodNodes[1].y - foodNodes[0].y) * Math.min(1, progress * 2));
+            ctx.stroke();
+          }
+
+          if (progress > 0.5) {
+            ctx.beginPath();
+            ctx.moveTo(foodNodes[1].x, foodNodes[1].y);
+            ctx.lineTo(foodNodes[1].x + (foodNodes[3].x - foodNodes[1].x) * Math.min(1, (progress - 0.5) * 2), foodNodes[1].y + (foodNodes[3].y - foodNodes[1].y) * Math.min(1, (progress - 0.5) * 2));
+            ctx.stroke();
+          }
+
+          foodNodes.forEach((node) => {
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#f1c40f';
+            ctx.beginPath(); ctx.arc(node.x, node.y, 14, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.fillStyle = '#000000'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+            ctx.fillText('🌾', node.x, node.y + 4);
+            ctx.fillStyle = '#2ecc71'; ctx.font = '11px sans-serif';
+            ctx.fillText(node.label, node.x, node.y + 28);
+          });
+        };
+
+        drawMaze();
+
+        if (mazeRunning) {
+          timer = setInterval(() => {
+            setMazeStep((prev) => {
+              if (prev >= 100) {
+                soundFx.playPop();
+                setMazeRunning(false);
+                return 100;
+              }
+              return prev + 2;
+            });
+          }, 50);
+        }
+
+        return () => clearInterval(timer);
+      }, [mazeStep, mazeRunning]);
+
+      const handleOptionSelect = (index) => {
+        if (selectedOption !== null) return;
+        setSelectedOption(index);
+        if (index === BLOB_QUIZ[currentQuizIndex].correctIndex) {
+          soundFx.playPop();
+          setScore((prev) => prev + 1);
+        } else {
+          soundFx.playSquish();
+        }
+      };
+
+      return (
+        <div className="space-y-8 animate-fadeIn">
+          <div className="text-center py-10 bg-slate-900/80 border border-slate-800 rounded-3xl p-6 sm:p-10 backdrop-blur-xl shadow-2xl">
+            <h1 className="text-4xl sm:text-6xl font-extrabold uppercase tracking-tight text-white mb-2">BLOB FACTS</h1>
+            <p className="text-slate-300 text-lg font-normal max-w-xl mx-auto">Keep reading for verified biological facts on blobs</p>
+          </div>
+
+          <div className="space-y-6">
+            {BLOB_FACTS.map((fact) => (
+              <div key={fact.id} className="bg-slate-900/80 p-8 rounded-3xl border border-slate-800 shadow-2xl backdrop-blur-xl flex flex-col md:flex-row gap-8 items-center text-left">
+                <div className="flex-1 space-y-3">
+                  <span className="inline-block bg-indigo-950 text-indigo-300 px-3.5 py-1 rounded-full text-xs font-bold uppercase border border-indigo-800">Fact #{fact.id} • {fact.category}</span>
+                  <h3 className="text-2xl font-extrabold uppercase text-white">{fact.title}</h3>
+                  <p className="text-slate-200 text-base">{fact.summary}</p>
+                  <p className="text-slate-300/90 text-sm bg-slate-950 p-4 rounded-2xl border border-slate-800">{fact.detail}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* MAZE SIMULATOR */}
+          <div className="bg-slate-900/80 p-6 sm:p-8 rounded-3xl border border-slate-800 shadow-2xl backdrop-blur-xl space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h3 className="text-2xl font-extrabold uppercase text-white">Slime Mold Maze Navigation Simulator</h3>
+                <p className="text-slate-300 text-sm mt-1">Watch Physarum Polycephalum stream protoplasm to discover the shortest route between oat flake food sources without a brain!</p>
+              </div>
+              <button
+                onClick={() => { soundFx.playSquish(); setMazeStep(0); setMazeRunning(true); }}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase text-xs px-5 py-2.5 rounded-full border border-indigo-400/30 transition-all cursor-pointer shadow-lg"
+              >
+                {mazeStep === 100 ? 'Rerun Simulation' : 'Start Slime Stream'}
+              </button>
+            </div>
+            <div className="flex justify-center bg-slate-950 p-4 rounded-2xl border border-slate-800 overflow-x-auto">
+              <canvas ref={mazeCanvasRef} className="block rounded-lg max-w-full" />
+            </div>
+          </div>
+
+          {/* QUIZ */}
+          <div className="bg-slate-900/80 p-6 sm:p-8 rounded-3xl border border-slate-800 shadow-2xl backdrop-blur-xl space-y-6 text-left">
+            <h3 className="text-2xl font-extrabold text-white uppercase">Certified Blobology Knowledge Exam</h3>
+            {!quizCompleted ? (
+              <div className="space-y-5">
+                <div className="flex justify-between text-xs font-bold text-slate-400 uppercase">
+                  <span>Question {currentQuizIndex + 1} of {BLOB_QUIZ.length}</span>
+                  <span>Score: {score}</span>
+                </div>
+                <h4 className="text-xl font-bold text-white">{BLOB_QUIZ[currentQuizIndex].question}</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {BLOB_QUIZ[currentQuizIndex].options.map((option, idx) => (
+                    <button
+                      key={idx}
+                      disabled={selectedOption !== null}
+                      onClick={() => handleOptionSelect(idx)}
+                      className={`p-4 text-left rounded-2xl border text-sm font-medium cursor-pointer transition-all ${
+                        selectedOption !== null
+                          ? idx === BLOB_QUIZ[currentQuizIndex].correctIndex
+                            ? 'bg-indigo-600 text-white border-indigo-400 font-bold'
+                            : selectedOption === idx
+                            ? 'bg-rose-600 text-white border-rose-400 font-bold'
+                            : 'bg-slate-950 text-slate-500 border-slate-800'
+                          : 'bg-slate-800 text-slate-200 border-slate-700 hover:border-indigo-500'
+                      }`}
+                    >
+                      <span className="font-bold mr-2 text-indigo-400">{String.fromCharCode(65 + idx)}.</span> {option}
+                    </button>
+                  ))}
+                </div>
+                {selectedOption !== null && (
+                  <div className="bg-slate-950 p-4 rounded-2xl border border-indigo-500/30 text-slate-200 space-y-2">
+                    <p className="text-xs text-slate-300">{BLOB_QUIZ[currentQuizIndex].explanation}</p>
+                    <button
+                      onClick={() => {
+                        soundFx.playSquish();
+                        setSelectedOption(null);
+                        if (currentQuizIndex + 1 < BLOB_QUIZ.length) setCurrentQuizIndex((p) => p + 1);
+                        else setQuizCompleted(true);
+                      }}
+                      className="mt-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase px-4 py-2 rounded-full text-xs cursor-pointer"
+                    >
+                      {currentQuizIndex + 1 < BLOB_QUIZ.length ? 'Next Question →' : 'See Results'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-6 space-y-4">
+                <div className="text-5xl">🦠✨</div>
+                <h3 className="text-3xl font-extrabold text-white uppercase">Exam Completed!</h3>
+                <p className="text-slate-300 text-lg">You scored <span className="text-indigo-400 font-bold text-2xl">{score} / {BLOB_QUIZ.length}</span>!</p>
+                <div className="flex flex-wrap justify-center gap-3">
+                  <button
+                    onClick={() => { soundFx.playPop(); onOpenDiploma && onOpenDiploma(); }}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold uppercase px-6 py-3 rounded-full cursor-pointer shadow-lg flex items-center gap-2"
+                  >
+                    🎓 Claim Official Blobology Diploma
+                  </button>
+                  <button
+                    onClick={() => { soundFx.playPop(); setCurrentQuizIndex(0); setSelectedOption(null); setScore(0); setQuizCompleted(false); }}
+                    className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold uppercase px-6 py-3 rounded-full cursor-pointer shadow-lg"
+                  >
+                    Retake Exam
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // --- TAB 3: BOOGIE VAULT ---
+    function BoogieVaultTab() {
+      const [evidenceList, setEvidenceList] = useState(INITIAL_BOOGIE_EVIDENCE);
+      const [showSubmitModal, setShowSubmitModal] = useState(false);
+      const [selectedThreatFilter, setSelectedThreatFilter] = useState('All');
+
+      const filteredEvidence = selectedThreatFilter === 'All'
+        ? evidenceList
+        : evidenceList.filter((item) => item.threatLevel === selectedThreatFilter);
+
+      const [titleInput, setTitleInput] = useState('');
+      const [locationInput, setLocationInput] = useState('');
+      const [descInput, setDescInput] = useState('');
+      const [threatInput, setThreatInput] = useState('Medium Goo');
+
+      const radarCanvasRef = useRef(null);
+      const [detectedEntities, setDetectedEntities] = useState([
+        { id: 1, x: 180, y: 120, name: 'Boogie Alpha (Sub-Bed)', temp: '14.2°C' },
+        { id: 2, x: 320, y: 200, name: 'Closet Entity', temp: '11.8°C' },
+        { id: 3, x: 90, y: 220, name: 'Ectoplasm Drift', temp: '8.5°C' }
+      ]);
+
+      useEffect(() => {
+        const canvas = radarCanvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        let animFrame;
+        let angle = 0;
+        const width = (canvas.width = 440);
+        const height = (canvas.height = 300);
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const radius = 130;
+
+        const renderRadar = () => {
+          angle += 0.025;
+          ctx.clearRect(0, 0, width, height);
+
+          ctx.strokeStyle = 'rgba(46, 204, 113, 0.3)';
+          ctx.lineWidth = 1.5;
+          [0.3, 0.6, 0.9].forEach((rRatio) => {
+            ctx.beginPath(); ctx.arc(centerX, centerY, radius * rRatio, 0, Math.PI * 2); ctx.stroke();
+          });
+
+          ctx.beginPath(); ctx.moveTo(centerX - radius, centerY); ctx.lineTo(centerX + radius, centerY);
+          ctx.moveTo(centerX, centerY - radius); ctx.lineTo(centerX, centerY + radius); ctx.stroke();
+
+          ctx.save();
+          ctx.translate(centerX, centerY);
+          ctx.rotate(angle);
+          const grad = ctx.createConicGradient(0, 0, 0);
+          grad.addColorStop(0, 'rgba(46, 204, 113, 0.4)');
+          grad.addColorStop(0.15, 'rgba(46, 204, 113, 0.05)');
+          grad.addColorStop(1, 'rgba(46, 204, 113, 0)');
+          ctx.fillStyle = grad;
+          ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, radius, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+
+          detectedEntities.forEach((entity) => {
+            ctx.fillStyle = '#ff3366'; ctx.shadowColor = '#ff3366'; ctx.shadowBlur = 15;
+            ctx.beginPath(); ctx.arc(entity.x, entity.y, 6 + Math.sin(angle * 4) * 2, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#ffffff'; ctx.font = 'bold 10px monospace';
+            ctx.fillText(`${entity.name} (${entity.temp})`, entity.x + 10, entity.y + 3);
+          });
+
+          animFrame = requestAnimationFrame(renderRadar);
+        };
+
+        renderRadar();
+        return () => cancelAnimationFrame(animFrame);
+      }, [detectedEntities]);
+
+      const handleAddEvidence = (e) => {
+        e.preventDefault();
+        if (!titleInput || !descInput) return;
+        soundFx.playPop();
+
+        const newItem = {
+          id: `boogie-${Date.now()}`,
+          title: titleInput,
+          location: locationInput || 'Unspecified Dark Corner',
+          date: 'Just Now',
+          description: descInput,
+          threatLevel: threatInput,
+          thermalTemp: '12.4°C (Protoplasmic Signature)',
+          imageUrl: 'https://images.unsplash.com/photo-1541701494587-cb58502866ab?auto=format&fit=crop&w=600&q=80',
+          verified: true
+        };
+
+        setEvidenceList([newItem, ...evidenceList]);
+        setTitleInput('');
+        setLocationInput('');
+        setDescInput('');
+        setShowSubmitModal(false);
+      };
+
+      return (
+        <div className="space-y-8 animate-fadeIn text-left">
+          <div className="text-center py-10 bg-slate-900/80 border border-slate-800 rounded-3xl p-6 sm:p-10 backdrop-blur-xl shadow-2xl">
+            <h1 className="text-4xl sm:text-6xl font-extrabold uppercase tracking-tight text-white mb-2">👁️ PROOF</h1>
+            <p className="text-slate-300 text-lg font-normal max-w-xl mx-auto">The Boogie Vault Archive • Verified Fluid Entity Log</p>
+          </div>
+
+          <div className="bg-slate-900/80 p-8 rounded-3xl border border-slate-800 shadow-2xl backdrop-blur-xl flex flex-col md:flex-row gap-8 items-center">
+            <div className="flex-1 space-y-4">
+              <span className="inline-block bg-indigo-950 text-indigo-300 px-3.5 py-1 rounded-full text-xs font-bold uppercase border border-indigo-800">Verified Scientific Fact</span>
+              <h3 className="text-2xl font-extrabold uppercase text-white">The Boogie Man Reality</h3>
+              <p className="text-slate-200 text-lg leading-relaxed">
+                Let's look at the absolute facts: The Boogie man. Boogies are blobs so they count. Their fluid structure and shifting properties make them prime examples of hidden blob entities lurking in dark corners.
+              </p>
+            </div>
+            <div className="flex-1 flex justify-center">
+              <BlobFrame imageUrl="https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=600&q=80" title="Boogie Mass Entity" subtext="Sub-bed thermal capture" />
+            </div>
+          </div>
+
+          <div className="bg-slate-900/80 p-6 sm:p-8 rounded-3xl border border-slate-800 shadow-2xl backdrop-blur-xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+            <div className="space-y-4">
+              <span className="text-xs font-mono bg-slate-950 px-3 py-1 rounded-full border border-slate-800 text-indigo-300 uppercase">Live Cryo-Gel Scanner</span>
+              <h3 className="text-2xl font-extrabold text-white uppercase">Thermal Boogie Radar Scan</h3>
+              <p className="text-slate-300 text-sm">Boogies radiate a unique cold thermal signature (~10°C to 15°C) due to their high water-density gelatin composition.</p>
+              <button
+                onClick={() => {
+                  soundFx.playScan();
+                  setDetectedEntities([...detectedEntities, {
+                    id: Date.now(),
+                    x: 80 + Math.random() * 280,
+                    y: 60 + Math.random() * 180,
+                    name: `Lurking Boogie #${Math.floor(Math.random() * 90 + 10)}`,
+                    temp: `${(9 + Math.random() * 6).toFixed(1)}°C`
+                  }]);
+                }}
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase py-3.5 rounded-full border border-indigo-400/30 transition-all cursor-pointer text-sm shadow-lg"
+              >
+                📡 Ping Sector for New Boogies
+              </button>
+            </div>
+            <div className="flex justify-center bg-slate-950 p-4 rounded-2xl border border-slate-800 overflow-hidden">
+              <canvas ref={radarCanvasRef} className="block rounded-lg max-w-full" />
+            </div>
+          </div>
+
+          {/* EVIDENCE LOG HEADER & ADD BUTTON */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900/80 p-6 rounded-3xl border border-slate-800">
+            <div>
+              <h3 className="text-2xl font-extrabold text-white uppercase">Verified Evidence Vault ({filteredEvidence.length})</h3>
+              <p className="text-xs text-slate-400 font-mono mt-1">Community submitted and thermal camera confirmed sightings</p>
+              
+              {/* THREAT FILTERS */}
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                {['All', 'Mild Squish', 'Medium Goo', 'Extreme Slime'].map((threat) => (
+                  <button
+                    key={threat}
+                    onClick={() => { soundFx.playPop(); setSelectedThreatFilter(threat); }}
+                    className={`px-3 py-1 rounded-full text-xs font-mono font-bold transition-all cursor-pointer border ${
+                      selectedThreatFilter === threat
+                        ? 'bg-indigo-600 text-white border-indigo-400/50 shadow-md'
+                        : 'bg-slate-950/80 text-slate-400 border-slate-800 hover:text-white'
+                    }`}
+                  >
+                    {threat}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button
+              onClick={() => { soundFx.playPop(); setShowSubmitModal(true); }}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase text-xs px-5 py-3 rounded-full border border-indigo-400/30 transition-all shadow-lg cursor-pointer flex items-center gap-2 shrink-0"
+            >
+              ➕ Submit Boogie Sightings
+            </button>
+          </div>
+
+          {/* EVIDENCE GRID */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {filteredEvidence.map((item) => (
+              <div key={item.id} className="bg-slate-900/80 rounded-3xl border border-slate-800 p-6 space-y-4 backdrop-blur-xl shadow-2xl hover:border-indigo-500/50 transition-all">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <span className="text-[10px] font-mono uppercase bg-indigo-950 text-indigo-300 px-2.5 py-0.5 rounded border border-indigo-800">{item.location}</span>
+                    <h4 className="text-lg font-extrabold text-white uppercase mt-1">{item.title}</h4>
+                  </div>
+                  <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-950/60 px-2 py-1 rounded border border-emerald-800">✔ VERIFIED</span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">{item.description}</p>
+                <div className="pt-3 border-t border-slate-800 flex justify-between items-center text-[11px] font-mono text-slate-400">
+                  <span>Threat: <strong className="text-amber-400">{item.threatLevel}</strong></span>
+                  <span>Temp: <strong className="text-cyan-400">{item.thermalTemp}</strong></span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* SUBMIT EVIDENCE MODAL */}
+          {showSubmitModal && (
+            <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 space-y-4 relative">
+                <button onClick={() => setShowSubmitModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white font-bold">✕</button>
+                <h3 className="text-2xl font-extrabold uppercase text-white">Log Boogie Sighting</h3>
+                <form onSubmit={handleAddEvidence} className="space-y-3">
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 block mb-1">Observation Title</label>
+                    <input type="text" value={titleInput} onChange={(e) => setTitleInput(e.target.value)} required placeholder="e.g. Under Bed Goo Blob" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 block mb-1">Sector / Location</label>
+                    <input type="text" value={locationInput} onChange={(e) => setLocationInput(e.target.value)} placeholder="e.g. Basement Corner 3" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 block mb-1">Threat Level</label>
+                    <select value={threatInput} onChange={(e) => setThreatInput(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs">
+                      <option value="Mild Squish">Mild Squish</option>
+                      <option value="Medium Goo">Medium Goo</option>
+                      <option value="Extreme Slime">Extreme Slime</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-300 block mb-1">Thermal & Visual Description</label>
+                    <textarea value={descInput} onChange={(e) => setDescInput(e.target.value)} required rows={3} placeholder="Describe the fluid motion, squishing noise, and cold temperature..." className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs" />
+                  </div>
+                  <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold uppercase py-3 rounded-full text-xs shadow-lg cursor-pointer">
+                    Log To Boogie Vault
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // --- TAB 4: GAMES ---
+    function GamesTab() {
+      const [activeGame, setActiveGame] = useState('slurp');
+      const [score, setScore] = useState(0);
+      const [wave, setWave] = useState(1);
+      const [highScore, setHighScore] = useState(() => {
+        try { return parseInt(localStorage.getItem('blob_high_score') || '0', 10); } catch { return 0; }
+      });
+      const [gameState, setGameState] = useState('idle');
+      const [gravityDirection, setGravityDirection] = useState(1);
+
+      const canvasRef = useRef(null);
+
+      const playerRef = useRef({
+        x: 250,
+        y: 175,
+        radius: 22,
+        vx: 0,
+        vy: 0,
+        targetX: 250,
+        targetY: 175,
+        health: 100,
+        maxHealth: 100
+      });
+
+      const foodRef = useRef([]);
+      const hazardsRef = useRef([]);
+      const sandboxBlobsRef = useRef([]);
+      const enemiesRef = useRef([]);
+      const projectilesRef = useRef([]);
+      const particlesRef = useRef([]);
+
+      const initSandboxBlobs = (width, height) => {
+        const colors = ['#6366f1', '#10b981', '#f43f5e', '#f59e0b', '#8b5cf6', '#06b6d4'];
+        sandboxBlobsRef.current = Array.from({ length: 6 }, (_, i) => ({
+          id: Math.random(),
+          x: 60 + i * 70,
+          y: 50 + (i % 3) * 40,
+          vx: (Math.random() - 0.5) * 4,
+          vy: Math.random() * 2 + 1,
+          radius: 18 + Math.random() * 12,
+          color: colors[i % colors.length],
+          wobble: Math.random() * 10
+        }));
+      };
+
+      const initFightWave = (currentWave, width, height) => {
+        const enemyCount = 3 + currentWave * 2;
+        const colors = ['#f43f5e', '#a855f7', '#ec4899', '#f97316'];
+        const newEnemies = [];
+
+        for (let i = 0; i < enemyCount; i++) {
+          const isBoss = i === 0 && currentWave % 3 === 0;
+          const radius = isBoss ? 35 : 16 + Math.random() * 8;
+          const hp = isBoss ? 150 : 30 + currentWave * 10;
+
+          let x = Math.random() * width;
+          let y = Math.random() * height;
+          if (Math.abs(x - 250) < 100) x = x < 250 ? 50 : width - 50;
+          if (Math.abs(y - 175) < 100) y = y < 175 ? 50 : height - 50;
+
+          newEnemies.push({
+            id: Math.random(),
+            x,
+            y,
+            vx: (Math.random() - 0.5) * (2 + currentWave * 0.3),
+            vy: (Math.random() - 0.5) * (2 + currentWave * 0.3),
+            radius,
+            health: hp,
+            maxHealth: hp,
+            color: isBoss ? '#e11d48' : colors[Math.floor(Math.random() * colors.length)],
+            type: isBoss ? 'boss' : Math.random() > 0.5 ? 'shadow' : 'slime',
+            wobble: Math.random() * 10
+          });
+        }
+        enemiesRef.current = newEnemies;
+      };
+
+      const spawnExplosion = (x, y, color, count = 12) => {
+        for (let i = 0; i < count; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = Math.random() * 5 + 1;
+          particlesRef.current.push({
+            x,
+            y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            color,
+            alpha: 1,
+            radius: 3 + Math.random() * 4
+          });
+        }
+      };
+
+      useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        let animId;
+        const width = (canvas.width = 500);
+        const height = (canvas.height = 350);
+
+        if (foodRef.current.length === 0) {
+          foodRef.current = Array.from({ length: 12 }, () => ({
+            x: Math.random() * (width - 40) + 20,
+            y: Math.random() * (height - 40) + 20,
+            radius: 6 + Math.random() * 4,
+            color: '#10b981',
+            val: 10
+          }));
+        }
+
+        if (hazardsRef.current.length === 0) {
+          hazardsRef.current = Array.from({ length: 4 }, () => ({
+            x: Math.random() * (width - 60) + 30,
+            y: Math.random() * (height - 60) + 30,
+            vx: (Math.random() - 0.5) * 2,
+            vy: (Math.random() - 0.5) * 2,
+            radius: 12
+          }));
+        }
+
+        if (sandboxBlobsRef.current.length === 0) {
+          initSandboxBlobs(width, height);
+        }
+
+        let time = 0;
+
+        const gameLoop = () => {
+          time += 0.04;
+          ctx.clearRect(0, 0, width, height);
+
+          // Grid background
+          ctx.fillStyle = '#090d16';
+          ctx.fillRect(0, 0, width, height);
+
+          ctx.strokeStyle = 'rgba(99, 102, 241, 0.08)';
+          ctx.lineWidth = 1;
+          for (let x = 0; x < width; x += 30) {
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
+          }
+          for (let y = 0; y < height; y += 30) {
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+          }
+
+          // MODE 1: SLURP
+          if (activeGame === 'slurp') {
+            const player = playerRef.current;
+
+            if (gameState === 'playing') {
+              const dx = player.targetX - player.x;
+              const dy = player.targetY - player.y;
+              player.x += dx * 0.12;
+              player.y += dy * 0.12;
+
+              player.x = Math.max(player.radius, Math.min(width - player.radius, player.x));
+              player.y = Math.max(player.radius, Math.min(height - player.radius, player.y));
+
+              foodRef.current.forEach((food) => {
+                const fdx = food.x - player.x;
+                const fdy = food.y - player.y;
+                if (Math.sqrt(fdx * fdx + fdy * fdy) < player.radius + food.radius) {
+                  soundFx.playPop();
+                  food.x = Math.random() * (width - 40) + 20;
+                  food.y = Math.random() * (height - 40) + 20;
+                  setScore((s) => {
+                    const newS = s + food.val;
+                    if (newS > highScore) {
+                      setHighScore(newS);
+                      try { localStorage.setItem('blob_high_score', newS.toString()); } catch {}
+                    }
+                    return newS;
+                  });
+                  player.radius = Math.min(45, player.radius + 0.5);
+                }
+              });
+
+              hazardsRef.current.forEach((haz) => {
+                haz.x += haz.vx;
+                haz.y += haz.vy;
+                if (haz.x < haz.radius || haz.x > width - haz.radius) haz.vx *= -1;
+                if (haz.y < haz.radius || haz.y > height - haz.radius) haz.vy *= -1;
+
+                const hdx = haz.x - player.x;
+                const hdy = haz.y - player.y;
+                if (Math.sqrt(hdx * hdx + hdy * hdy) < player.radius + haz.radius - 4) {
+                  soundFx.playSquish();
+                  spawnExplosion(player.x, player.y, '#6366f1', 20);
+                  setGameState('gameover');
+                }
+              });
+            }
+
+            // Draw Food
+            foodRef.current.forEach((food) => {
+              ctx.fillStyle = food.color;
+              ctx.shadowColor = food.color;
+              ctx.shadowBlur = 10;
+              ctx.beginPath();
+              ctx.arc(food.x, food.y, food.radius, 0, Math.PI * 2);
+              ctx.fill();
+            });
+
+            // Draw Hazards
+            hazardsRef.current.forEach((haz) => {
+              ctx.fillStyle = '#f43f5e';
+              ctx.shadowColor = '#f43f5e';
+              ctx.shadowBlur = 12;
+              ctx.beginPath();
+              ctx.arc(haz.x, haz.y, haz.radius, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.strokeStyle = '#ffffff';
+              ctx.lineWidth = 1.5;
+              ctx.stroke();
+            });
+
+            // Draw Player Blob
+            ctx.save();
+            ctx.translate(player.x, player.y);
+            ctx.beginPath();
+            const points = 10;
+            for (let i = 0; i <= points; i++) {
+              const angle = (i / points) * Math.PI * 2;
+              const wobble = Math.sin(time * 4 + i) * (player.radius * 0.2);
+              const r = player.radius + wobble;
+              const px = Math.cos(angle) * r;
+              const py = Math.sin(angle) * r;
+              if (i === 0) ctx.moveTo(px, py);
+              else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fillStyle = '#6366f1';
+            ctx.shadowColor = '#6366f1';
+            ctx.shadowBlur = 20;
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+
+            // Eyes
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(-8, -6, 5, 0, Math.PI * 2);
+            ctx.arc(8, -6, 5, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.arc(-8, -6, 2.5, 0, Math.PI * 2);
+            ctx.arc(8, -6, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+          // MODE 2: FIGHT
+          } else if (activeGame === 'fight') {
+            const player = playerRef.current;
+
+            if (gameState === 'playing') {
+              const dx = player.targetX - player.x;
+              const dy = player.targetY - player.y;
+              player.x += dx * 0.15;
+              player.y += dy * 0.15;
+
+              player.x = Math.max(player.radius, Math.min(width - player.radius, player.x));
+              player.y = Math.max(player.radius, Math.min(height - player.radius, player.y));
+
+              projectilesRef.current.forEach((p) => {
+                p.x += p.vx;
+                p.y += p.vy;
+
+                enemiesRef.current.forEach((enemy) => {
+                  if (enemy.health <= 0) return;
+                  const edx = p.x - enemy.x;
+                  const edy = p.y - enemy.y;
+                  if (Math.sqrt(edx * edx + edy * edy) < p.radius + enemy.radius) {
+                    enemy.health -= 25;
+                    p.x = -999;
+                    soundFx.playPop();
+                    spawnExplosion(p.x, p.y, enemy.color, 8);
+
+                    if (enemy.health <= 0) {
+                      soundFx.playSquish();
+                      spawnExplosion(enemy.x, enemy.y, enemy.color, 16);
+                      setScore((s) => {
+                        const newS = s + (enemy.type === 'boss' ? 500 : 100);
+                        if (newS > highScore) {
+                          setHighScore(newS);
+                          try { localStorage.setItem('blob_high_score', newS.toString()); } catch {}
+                        }
+                        return newS;
+                      });
+                    }
+                  }
+                });
+              });
+
+              projectilesRef.current = projectilesRef.current.filter(
+                (p) => p.x > 0 && p.x < width && p.y > 0 && p.y < height
+              );
+
+              enemiesRef.current.forEach((enemy) => {
+                if (enemy.health <= 0) return;
+
+                enemy.x += enemy.vx;
+                enemy.y += enemy.vy;
+
+                if (enemy.x < enemy.radius || enemy.x > width - enemy.radius) enemy.vx *= -1;
+                if (enemy.y < enemy.radius || enemy.y > height - enemy.radius) enemy.vy *= -1;
+
+                const pdx = player.x - enemy.x;
+                const pdy = player.y - enemy.y;
+                if (Math.sqrt(pdx * pdx + pdy * pdy) < player.radius + enemy.radius) {
+                  soundFx.playSquish();
+                  player.health -= 0.8;
+                  spawnExplosion(player.x, player.y, '#f43f5e', 3);
+
+                  if (player.health <= 0) {
+                    setGameState('gameover');
+                  }
+                }
+              });
+
+              const activeEnemies = enemiesRef.current.filter((e) => e.health > 0);
+              if (activeEnemies.length === 0) {
+                soundFx.playBounce(1.5);
+                const nextW = wave + 1;
+                setWave(nextW);
+                initFightWave(nextW, width, height);
+              }
+            }
+
+            // Draw Projectiles
+            projectilesRef.current.forEach((p) => {
+              ctx.fillStyle = p.color;
+              ctx.shadowColor = p.color;
+              ctx.shadowBlur = 12;
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+              ctx.fill();
+            });
+
+            // Draw Enemies
+            enemiesRef.current.forEach((enemy) => {
+              if (enemy.health <= 0) return;
+              ctx.save();
+              ctx.translate(enemy.x, enemy.y);
+              ctx.beginPath();
+              const points = 8;
+              for (let i = 0; i <= points; i++) {
+                const angle = (i / points) * Math.PI * 2;
+                const wobble = Math.sin(time * 6 + i + enemy.wobble) * (enemy.radius * 0.15);
+                const r = enemy.radius + wobble;
+                const px = Math.cos(angle) * r;
+                const py = Math.sin(angle) * r;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+              }
+              ctx.closePath();
+              ctx.fillStyle = enemy.color;
+              ctx.shadowColor = enemy.color;
+              ctx.shadowBlur = 15;
+              ctx.fill();
+              ctx.strokeStyle = '#ffffff';
+              ctx.lineWidth = 2;
+              ctx.stroke();
+
+              ctx.fillStyle = '#ffffff';
+              ctx.beginPath();
+              ctx.arc(-enemy.radius * 0.3, -enemy.radius * 0.2, enemy.radius * 0.25, 0, Math.PI * 2);
+              ctx.arc(enemy.radius * 0.3, -enemy.radius * 0.2, enemy.radius * 0.25, 0, Math.PI * 2);
+              ctx.fill();
+
+              ctx.fillStyle = '#000000';
+              ctx.beginPath();
+              ctx.arc(-enemy.radius * 0.3, -enemy.radius * 0.2, enemy.radius * 0.12, 0, Math.PI * 2);
+              ctx.arc(enemy.radius * 0.3, -enemy.radius * 0.2, enemy.radius * 0.12, 0, Math.PI * 2);
+              ctx.fill();
+
+              if (enemy.health < enemy.maxHealth) {
+                const barW = enemy.radius * 2;
+                ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                ctx.fillRect(-enemy.radius, -enemy.radius - 12, barW, 4);
+                ctx.fillStyle = '#f43f5e';
+                ctx.fillRect(-enemy.radius, -enemy.radius - 12, barW * (enemy.health / enemy.maxHealth), 4);
+              }
+              ctx.restore();
+            });
+
+            // Draw Player Hero
+            ctx.save();
+            ctx.translate(player.x, player.y);
+            ctx.beginPath();
+            const points = 10;
+            for (let i = 0; i <= points; i++) {
+              const angle = (i / points) * Math.PI * 2;
+              const wobble = Math.sin(time * 5 + i) * 3;
+              const r = player.radius + wobble;
+              const px = Math.cos(angle) * r;
+              const py = Math.sin(angle) * r;
+              if (i === 0) ctx.moveTo(px, py);
+              else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fillStyle = '#818cf8';
+            ctx.shadowColor = '#6366f1';
+            ctx.shadowBlur = 20;
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(-7, -5, 4.5, 0, Math.PI * 2);
+            ctx.arc(7, -5, 4.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.arc(-7, -5, 2, 0, Math.PI * 2);
+            ctx.arc(7, -5, 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            if (gameState === 'playing') {
+              ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
+              ctx.fillRect(10, height - 20, 120, 12);
+              ctx.fillStyle = player.health > 30 ? '#10b981' : '#f43f5e';
+              ctx.fillRect(10, height - 20, 120 * (player.health / player.maxHealth), 12);
+              ctx.strokeStyle = '#ffffff';
+              ctx.lineWidth = 1;
+              ctx.strokeRect(10, height - 20, 120, 12);
+
+              ctx.fillStyle = '#ffffff';
+              ctx.font = 'bold 9px sans-serif';
+              ctx.fillText(`HP: ${Math.ceil(player.health)}%`, 15, height - 11);
+            }
+
+          // MODE 3: DODGE
+          } else if (activeGame === 'dodge') {
+            const player = playerRef.current;
+
+            if (gameState === 'playing') {
+              player.x += (player.targetX - player.x) * 0.15;
+              player.y += (player.targetY - player.y) * 0.15;
+
+              hazardsRef.current.forEach((haz) => {
+                haz.x += haz.vx * 1.5;
+                haz.y += haz.vy * 1.5;
+
+                if (haz.x < 0 || haz.x > width) haz.vx *= -1;
+                if (haz.y < 0 || haz.y > height) haz.vy *= -1;
+
+                const hdx = haz.x - player.x;
+                const hdy = haz.y - player.y;
+                if (Math.sqrt(hdx * hdx + hdy * hdy) < player.radius + haz.radius) {
+                  soundFx.playSquish();
+                  spawnExplosion(player.x, player.y, '#38bdf8', 16);
+                  setGameState('gameover');
+                }
+              });
+
+              setScore((s) => {
+                const newS = s + 1;
+                if (newS > highScore) {
+                  setHighScore(newS);
+                  try { localStorage.setItem('blob_high_score', newS.toString()); } catch {}
+                }
+                return newS;
+              });
+            }
+
+            ctx.fillStyle = '#38bdf8';
+            ctx.shadowColor = '#38bdf8';
+            ctx.shadowBlur = 15;
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, 16, 0, Math.PI * 2);
+            ctx.fill();
+
+            hazardsRef.current.forEach((haz) => {
+              ctx.fillStyle = '#a855f7';
+              ctx.shadowColor = '#a855f7';
+              ctx.shadowBlur = 15;
+              ctx.beginPath();
+              ctx.arc(haz.x, haz.y, haz.radius + 4, 0, Math.PI * 2);
+              ctx.fill();
+            });
+
+          // MODE 4: SANDBOX
+          } else if (activeGame === 'sandbox') {
+            const blobs = sandboxBlobsRef.current;
+
+            for (let i = 0; i < blobs.length; i++) {
+              const b = blobs[i];
+              b.x += b.vx;
+              b.y += b.vy;
+              b.vy += 0.25 * gravityDirection;
+
+              if (b.x < b.radius) {
+                b.x = b.radius;
+                b.vx *= -0.8;
+                soundFx.playBounce(Math.abs(b.vx));
+              }
+              if (b.x > width - b.radius) {
+                b.x = width - b.radius;
+                b.vx *= -0.8;
+                soundFx.playBounce(Math.abs(b.vx));
+              }
+              if (b.y > height - b.radius) {
+                b.y = height - b.radius;
+                b.vy *= -0.75;
+                b.vx *= 0.95;
+                if (Math.abs(b.vy) > 1) soundFx.playBounce(Math.abs(b.vy));
+              }
+              if (b.y < b.radius) {
+                b.y = b.radius;
+                b.vy *= -0.75;
+                if (Math.abs(b.vy) > 1) soundFx.playBounce(Math.abs(b.vy));
+              }
+
+              for (let j = i + 1; j < blobs.length; j++) {
+                const b2 = blobs[j];
+                const dx = b2.x - b.x;
+                const dy = b2.y - b.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const minDist = b.radius + b2.radius;
+
+                if (dist < minDist && dist > 0) {
+                  const overlap = minDist - dist;
+                  const nx = dx / dist;
+                  const ny = dy / dist;
+
+                  b.x -= nx * overlap * 0.5;
+                  b.y -= ny * overlap * 0.5;
+                  b2.x += nx * overlap * 0.5;
+                  b2.y += ny * overlap * 0.5;
+
+                  const kx = b.vx - b2.vx;
+                  const ky = b.vy - b2.vy;
+                  const p = 2 * (nx * kx + ny * ky) / 2;
+
+                  b.vx -= p * nx * 0.85;
+                  b.vy -= p * ny * 0.85;
+                  b2.vx += p * nx * 0.85;
+                  b2.vy += p * ny * 0.85;
+
+                  b.wobble += 5;
+                  b2.wobble += 5;
+
+                  soundFx.playBounce(Math.min(2, Math.abs(p)));
+                }
+              }
+
+              ctx.save();
+              ctx.translate(b.x, b.y);
+              ctx.beginPath();
+              const points = 8;
+              for (let k = 0; k <= points; k++) {
+                const angle = (k / points) * Math.PI * 2;
+                const w = Math.sin(time * 5 + k + b.wobble) * 4;
+                const r = b.radius + w;
+                const px = Math.cos(angle) * r;
+                const py = Math.sin(angle) * r;
+                if (k === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+              }
+              ctx.closePath();
+              ctx.fillStyle = b.color;
+              ctx.shadowColor = b.color;
+              ctx.shadowBlur = 15;
+              ctx.fill();
+              ctx.strokeStyle = '#ffffff';
+              ctx.lineWidth = 2;
+              ctx.stroke();
+
+              ctx.fillStyle = '#ffffff';
+              ctx.beginPath();
+              ctx.arc(-b.radius * 0.25, -b.radius * 0.15, b.radius * 0.2, 0, Math.PI * 2);
+              ctx.arc(b.radius * 0.25, -b.radius * 0.15, b.radius * 0.2, 0, Math.PI * 2);
+              ctx.fill();
+
+              ctx.fillStyle = '#0f172a';
+              ctx.beginPath();
+              ctx.arc(-b.radius * 0.25, -b.radius * 0.15, b.radius * 0.1, 0, Math.PI * 2);
+              ctx.arc(b.radius * 0.25, -b.radius * 0.15, b.radius * 0.1, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.restore();
+            }
+          }
+
+          particlesRef.current.forEach((p) => {
+            p.x += p.vx;
+            p.y += p.vy;
+            p.alpha -= 0.03;
+
+            if (p.alpha > 0) {
+              ctx.save();
+              ctx.globalAlpha = Math.max(0, p.alpha);
+              ctx.fillStyle = p.color;
+              ctx.beginPath();
+              ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.restore();
+            }
+          });
+          particlesRef.current = particlesRef.current.filter((p) => p.alpha > 0);
+
+          animId = requestAnimationFrame(gameLoop);
+        };
+
+        gameLoop();
+        return () => cancelAnimationFrame(animId);
+      }, [activeGame, gameState, highScore, wave, gravityDirection]);
+
+      const handleMouseMove = (e) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width) * canvas.width;
+        const y = ((e.clientY - rect.top) / rect.height) * canvas.height;
+        playerRef.current.targetX = x;
+        playerRef.current.targetY = y;
+      };
+
+      const handleCanvasClick = (e) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        const clickX = ((e.clientX - rect.left) / rect.width) * canvas.width;
+        const clickY = ((e.clientY - rect.top) / rect.height) * canvas.height;
+
+        if (activeGame === 'fight' && gameState === 'playing') {
+          const player = playerRef.current;
+          const angle = Math.atan2(clickY - player.y, clickX - player.x);
+          const speed = 8;
+          soundFx.playPop();
+          projectilesRef.current.push({
+            id: Math.random(),
+            x: player.x,
+            y: player.y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            radius: 7,
+            color: '#6366f1'
+          });
+        } else if (activeGame === 'sandbox') {
+          soundFx.playBounce(1.2);
+          const colors = ['#6366f1', '#10b981', '#f43f5e', '#f59e0b', '#8b5cf6', '#06b6d4'];
+          sandboxBlobsRef.current.push({
+            id: Math.random(),
+            x: clickX,
+            y: clickY,
+            vx: (Math.random() - 0.5) * 6,
+            vy: -4 - Math.random() * 4,
+            radius: 16 + Math.random() * 14,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            wobble: Math.random() * 10
+          });
+        }
+      };
+
+      const startGame = () => {
+        soundFx.playPop();
+        setScore(0);
+        playerRef.current = {
+          x: 250,
+          y: 175,
+          radius: 22,
+          vx: 0,
+          vy: 0,
+          targetX: 250,
+          targetY: 175,
+          health: 100,
+          maxHealth: 100
+        };
+
+        if (activeGame === 'fight') {
+          setWave(1);
+          const canvas = canvasRef.current;
+          const w = canvas ? canvas.width : 500;
+          const h = canvas ? canvas.height : 350;
+          initFightWave(1, w, h);
+        }
+
+        setGameState('playing');
+      };
+
+      return (
+        <div className="space-y-8 animate-fadeIn">
+          {/* HERO */}
+          <div className="text-center py-10 sm:py-12 bg-slate-900/80 border border-slate-800 rounded-3xl p-6 sm:p-10 backdrop-blur-xl shadow-2xl">
+            <h1 className="text-4xl sm:text-6xl font-extrabold uppercase tracking-tight text-white mb-2 flex items-center justify-center gap-3">
+              🎮 BLOB ARCADE
+            </h1>
+            <p className="text-slate-300 text-lg font-normal max-w-xl mx-auto">
+              High-Velocity Protoplasmic Entertainment & Physics Action
+            </p>
+          </div>
+
+          {/* GAME MODE SWITCHER */}
+          <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
+            <button
+              onClick={() => {
+                soundFx.playSquish();
+                setActiveGame('slurp');
+                setGameState('idle');
+              }}
+              className={`px-5 py-2.5 rounded-full font-bold text-xs sm:text-sm uppercase border transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeGame === 'slurp'
+                  ? 'bg-indigo-600 text-white border-indigo-400/40 shadow-lg shadow-indigo-500/25 scale-105'
+                  : 'bg-slate-900/80 text-slate-300 border-slate-800 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              🧪 Slime Slurp Arcade
+            </button>
+
+            <button
+              onClick={() => {
+                soundFx.playSquish();
+                setActiveGame('fight');
+                setGameState('idle');
+              }}
+              className={`px-5 py-2.5 rounded-full font-bold text-xs sm:text-sm uppercase border transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeGame === 'fight'
+                  ? 'bg-indigo-600 text-white border-indigo-400/40 shadow-lg shadow-indigo-500/25 scale-105'
+                  : 'bg-slate-900/80 text-slate-300 border-slate-800 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              🥊 Boogie Ball Fight
+            </button>
+
+            <button
+              onClick={() => {
+                soundFx.playSquish();
+                setActiveGame('dodge');
+                setGameState('idle');
+              }}
+              className={`px-5 py-2.5 rounded-full font-bold text-xs sm:text-sm uppercase border transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeGame === 'dodge'
+                  ? 'bg-indigo-600 text-white border-indigo-400/40 shadow-lg shadow-indigo-500/25 scale-105'
+                  : 'bg-slate-900/80 text-slate-300 border-slate-800 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              👻 Boogie Dodge
+            </button>
+
+            <button
+              onClick={() => {
+                soundFx.playSquish();
+                setActiveGame('sandbox');
+                setGameState('playing');
+              }}
+              className={`px-5 py-2.5 rounded-full font-bold text-xs sm:text-sm uppercase border transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeGame === 'sandbox'
+                  ? 'bg-indigo-600 text-white border-indigo-400/40 shadow-lg shadow-indigo-500/25 scale-105'
+                  : 'bg-slate-900/80 text-slate-300 border-slate-800 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              ⚛️ Physics Jelly Sandbox
+            </button>
+          </div>
+
+          {/* ARCADE GAME CONTAINER */}
+          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 text-center max-w-[580px] mx-auto shadow-2xl backdrop-blur-xl space-y-4">
+            <div className="flex justify-between items-center px-2">
+              <div className="text-xl font-extrabold text-indigo-400 uppercase tracking-wider flex items-center gap-2">
+                ⚡ SCORE: {score}
+              </div>
+
+              {activeGame === 'fight' && (
+                <div className="text-xs font-mono font-bold text-indigo-300 bg-slate-950 px-3 py-1.5 rounded-full border border-slate-800">
+                  WAVE #{wave}
+                </div>
+              )}
+
+              <div className="text-xs font-mono text-indigo-300 font-bold bg-slate-950/80 px-3.5 py-1.5 rounded-full border border-slate-800 flex items-center gap-1.5">
+                🏆 HIGH: {highScore}
+              </div>
+            </div>
+
+            <div className="relative">
+              <canvas
+                ref={canvasRef}
+                onMouseMove={handleMouseMove}
+                onClick={handleCanvasClick}
+                className="bg-slate-950 border border-slate-800 rounded-2xl block mx-auto cursor-crosshair max-w-full shadow-inner"
+              />
+
+              {/* OVERLAY STATES FOR ARCADE MODES */}
+              {gameState === 'idle' && activeGame !== 'sandbox' && (
+                <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center rounded-2xl gap-4">
+                  <div className="text-4xl">
+                    {activeGame === 'fight' ? '🥊💥' : activeGame === 'slurp' ? '🦠🎮' : '👻⚡'}
+                  </div>
+                  <h3 className="text-2xl font-extrabold text-white uppercase tracking-tight">
+                    {activeGame === 'slurp'
+                      ? 'Slime Slurp Arcade'
+                      : activeGame === 'fight'
+                      ? 'Boogie Ball Fight'
+                      : 'Boogie Dodge'}
+                  </h3>
+                  <p className="text-slate-300 text-xs max-w-xs leading-relaxed">
+                    {activeGame === 'slurp'
+                      ? 'Guide your blob with mouse. Eat nutrient dots, avoid spiky crystals!'
+                      : activeGame === 'fight'
+                      ? 'Aim and click to launch Boogie Slime Balls! Defeat bouncy enemy boogie balls across waves!'
+                      : 'Dodge incoming shadow boogies for as long as possible!'}
+                  </p>
+                  <button
+                    onClick={startGame}
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 text-sm font-bold uppercase cursor-pointer rounded-full transition-all flex items-center gap-2 shadow-lg shadow-indigo-500/25"
+                  >
+                    ▶ START GAME
+                  </button>
+                </div>
+              )}
+
+              {gameState === 'gameover' && activeGame !== 'sandbox' && (
+                <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center rounded-2xl gap-3 animate-fadeIn">
+                  <div className="text-4xl">💥💧</div>
+                  <h3 className="text-3xl font-extrabold text-rose-500 uppercase tracking-tight">SQUISHED!</h3>
+                  <p className="text-slate-300 text-sm">
+                    Final Score: <span className="font-bold text-white text-lg">{score}</span>
+                  </p>
+                  <button
+                    onClick={startGame}
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2.5 text-xs font-bold uppercase cursor-pointer rounded-full transition-all flex items-center gap-2 shadow-lg shadow-indigo-500/25"
+                  >
+                    🔄 PLAY AGAIN
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* SANDBOX CONTROLS HUD */}
+            {activeGame === 'sandbox' && (
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                <button
+                  onClick={() => {
+                    const canvas = canvasRef.current;
+                    if (!canvas) return;
+                    handleCanvasClick({
+                      clientX: canvas.getBoundingClientRect().left + canvas.width / 2,
+                      clientY: canvas.getBoundingClientRect().top + 50
+                    });
+                  }}
+                  className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs uppercase px-4 py-2 rounded-full border border-indigo-400/30 flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+                >
+                  ➕ Spawn Boogie Ball
+                </button>
+
+                <button
+                  onClick={() => {
+                    soundFx.playSquish();
+                    setGravityDirection((prev) => (prev === 1 ? -1 : 1));
+                  }}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs uppercase px-4 py-2 rounded-full border border-slate-700 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  ↕️ Gravity: {gravityDirection === 1 ? 'Down ⬇️' : 'Up ⬆️'}
+                </button>
+
+                <button
+                  onClick={() => {
+                    soundFx.playPop();
+                    const canvas = canvasRef.current;
+                    if (canvas) initSandboxBlobs(canvas.width, canvas.height);
+                  }}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs uppercase px-4 py-2 rounded-full border border-slate-700 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  🗑️ Reset Arena
+                </button>
+              </div>
+            )}
+
+            <div className="text-xs text-slate-400 font-mono">
+              {activeGame === 'slurp' && '💡 Tip: Hover mouse to steer fluid motion.'}
+              {activeGame === 'fight' && '💡 Tip: Click anywhere to aim and fire Boogie Ball blasts at enemy boogies!'}
+              {activeGame === 'dodge' && '💡 Tip: Keep moving in circles around the canvas center.'}
+              {activeGame === 'sandbox' && '💡 Tip: Click anywhere in the box to spawn interactive bouncing boogies!'}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // --- DIPLOMA MODAL COMPONENT ---
+    function DiplomaModal({ isOpen, onClose, defaultName }) {
+      const [researcherName, setResearcherName] = useState(defaultName || '@GooeyGamer');
+      const canvasRef = useRef(null);
+
+      useEffect(() => {
+        if (!isOpen) return;
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const w = (canvas.width = 680);
+        const h = (canvas.height = 460);
+
+        // Background Parchment / Deep Blue Gel Certificate
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, w, h);
+
+        // Gold Outer Border
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 6;
+        ctx.strokeRect(16, 16, w - 32, h - 32);
+
+        // Inner Fine Border
+        ctx.strokeStyle = '#6366f1';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(24, 24, w - 48, h - 48);
+
+        // Header Title
+        ctx.fillStyle = '#818cf8';
+        ctx.font = 'bold 12px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('OFFICIAL PROTOPLASMIC RESEARCH INSTITUTE', w / 2, 60);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 24px sans-serif';
+        ctx.fillText('DIPLOMA OF ADVANCED BLOBOLOGY', w / 2, 95);
+
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '13px sans-serif';
+        ctx.fillText('This official document certifies that', w / 2, 130);
+
+        // Scholar Name
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = 'bold 28px sans-serif';
+        ctx.fillText((researcherName || '@GooeyGamer').toUpperCase(), w / 2, 175);
+
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(w / 2 - 140, 185);
+        ctx.lineTo(w / 2 + 140, 185);
+        ctx.stroke();
+
+        // Citation
+        ctx.fillStyle = '#cbd5e1';
+        ctx.font = '13px sans-serif';
+        ctx.fillText('has successfully satisfied all rigorous biological examinations in', w / 2, 220);
+        ctx.fillText('Protoplasmic Streaming, Coenocytic Fusion, and Viscous Gel Mechanics.', w / 2, 240);
+
+        // Gold Seal on Left
+        ctx.save();
+        ctx.translate(110, 340);
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.arc(0, 0, 38, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = '#0f172a';
+        ctx.font = 'bold 8px monospace';
+        ctx.fillText('VERIFIED', 0, -6);
+        ctx.fillText('BLOBOLOGIST', 0, 6);
+        ctx.restore();
+
+        // Signature on Right
+        ctx.fillStyle = '#a5b4fc';
+        ctx.font = 'italic 18px cursive';
+        ctx.fillText('Dr. Gelatinus Prime', w - 160, 340);
+        ctx.strokeStyle = '#6366f1';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(w - 240, 350);
+        ctx.lineTo(w - 80, 350);
+        ctx.stroke();
+
+        ctx.fillStyle = '#64748b';
+        ctx.font = '10px monospace';
+        ctx.fillText('Chief Slime Officer', w - 160, 366);
+      }, [isOpen, researcherName]);
+
+      if (!isOpen) return null;
+
+      const handleDownload = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        soundFx.playPop();
+        const image = canvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = image;
+        a.download = `Blobology_Diploma_${researcherName.replace(/[^a-zA-Z0-9]/g, '_')}.png`;
+        a.click();
+      };
+
+      return (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full p-6 text-center space-y-4 relative">
+            <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white font-bold">✕</button>
+            <h3 className="text-2xl font-extrabold uppercase text-white">🎓 Official Diploma Generator</h3>
+            
+            <div className="flex items-center gap-2 max-w-sm mx-auto">
+              <label className="text-xs font-bold text-slate-300 font-mono">Researcher Name:</label>
+              <input
+                type="text"
+                value={researcherName}
+                onChange={(e) => setResearcherName(e.target.value)}
+                className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-white font-mono text-xs"
+              />
+            </div>
+
+            <div className="bg-slate-950 p-2 rounded-2xl border border-slate-800 overflow-hidden flex justify-center">
+              <canvas ref={canvasRef} className="block rounded-xl max-w-full shadow-2xl" />
+            </div>
+
+            <div className="flex justify-center gap-3">
+              <button
+                onClick={handleDownload}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase px-6 py-3 rounded-full text-xs shadow-lg flex items-center gap-2 cursor-pointer"
+              >
+                💾 Download Diploma PNG
+              </button>
+              <button
+                onClick={onClose}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold uppercase px-6 py-3 rounded-full text-xs cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // --- TAB 5: BLOB LAB ---
+    function BlobLabTab() {
+      const [tl, setTl] = useState(40);
+      const [tr, setTr] = useState(60);
+      const [br, setBr] = useState(70);
+      const [bl, setBl] = useState(30);
+      const [colorStart, setColorStart] = useState('#2ecc71');
+      const [colorEnd, setColorEnd] = useState('#0e2a18');
+      const [eyeMode, setEyeMode] = useState('dual');
+      const [debugMode, setDebugMode] = useState(false);
+      const [copied, setCopied] = useState(false);
+
+      const shapeString = `${tl}% ${100-tl}% ${100-br}% ${br}% / ${100-bl}% ${tr}% ${100-tr}% ${bl}%`;
+
+      const PRESETS = [
+        { name: 'Bio-Slime', start: '#2ecc71', end: '#0e2a18', shape: [40, 60, 70, 30] },
+        { name: 'Neon Plasma', start: '#ec4899', end: '#8b5cf6', shape: [60, 40, 30, 70] },
+        { name: 'Deep Ocean', start: '#06b6d4', end: '#1e3a8a', shape: [50, 50, 60, 40] },
+        { name: 'Toxic Gel', start: '#eab308', end: '#15803d', shape: [70, 30, 50, 50] },
+      ];
+
+      return (
+        <div className="space-y-8 animate-fadeIn text-left">
+          <div className="text-center py-10 bg-slate-900/80 border border-slate-800 rounded-3xl p-6 sm:p-10 backdrop-blur-xl shadow-2xl">
+            <h1 className="text-4xl sm:text-6xl font-extrabold uppercase tracking-tight text-white mb-2">🧪 THE BLOB LAB</h1>
+            <p className="text-slate-300 text-lg font-normal max-w-xl mx-auto">Interactive Organic Viscosity & Morphing Sandbox</p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center bg-slate-900/80 p-6 sm:p-8 rounded-3xl border border-slate-800 backdrop-blur-xl shadow-2xl">
+            <div className="flex flex-col items-center justify-center p-6 bg-slate-950 rounded-2xl border border-slate-800 min-h-[380px] relative overflow-hidden">
+              <button
+                onClick={() => { soundFx.playSquish(); setDebugMode(!debugMode); }}
+                className={`absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-mono font-bold uppercase transition-all border ${debugMode ? 'bg-cyan-950 text-cyan-300 border-cyan-400' : 'bg-slate-900 text-slate-400 border-slate-800'}`}
+              >
+                DEBUG {debugMode ? 'ON' : 'OFF'}
+              </button>
+
+              <div
+                onClick={() => soundFx.playSquish()}
+                style={{
+                  width: '220px',
+                  height: '220px',
+                  borderRadius: shapeString,
+                  background: `linear-gradient(135deg, ${colorStart}, ${colorEnd})`,
+                  boxShadow: '0 0 35px ' + colorStart,
+                  border: '2px solid rgba(255,255,255,0.8)'
+                }}
+                className="cursor-pointer transition-all duration-300 flex items-center justify-center hover:scale-105 active:scale-95 shadow-2xl relative"
+              >
+                {/* EYES */}
+                {eyeMode === 'single' && (
+                  <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
+                    <div className="w-3.5 h-3.5 bg-slate-950 rounded-full" />
+                  </div>
+                )}
+                {eyeMode === 'dual' && (
+                  <div className="flex gap-8">
+                    <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center"><div className="w-2.5 h-2.5 bg-slate-950 rounded-full" /></div>
+                    <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center"><div className="w-2.5 h-2.5 bg-slate-950 rounded-full" /></div>
+                  </div>
+                )}
+                {eyeMode === 'tri' && (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-5 h-5 bg-white rounded-full flex items-center justify-center"><div className="w-2 h-2 bg-slate-950 rounded-full" /></div>
+                    <div className="flex gap-6">
+                      <div className="w-5 h-5 bg-white rounded-full flex items-center justify-center"><div className="w-2 h-2 bg-slate-950 rounded-full" /></div>
+                      <div className="w-5 h-5 bg-white rounded-full flex items-center justify-center"><div className="w-2 h-2 bg-slate-950 rounded-full" /></div>
+                    </div>
+                  </div>
+                )}
+                {eyeMode === 'quad' && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="w-5 h-5 bg-white rounded-full flex items-center justify-center"><div className="w-2 h-2 bg-slate-950 rounded-full" /></div>
+                    <div className="w-5 h-5 bg-white rounded-full flex items-center justify-center"><div className="w-2 h-2 bg-slate-950 rounded-full" /></div>
+                    <div className="w-5 h-5 bg-white rounded-full flex items-center justify-center"><div className="w-2 h-2 bg-slate-950 rounded-full" /></div>
+                    <div className="w-5 h-5 bg-white rounded-full flex items-center justify-center"><div className="w-2 h-2 bg-slate-950 rounded-full" /></div>
+                  </div>
+                )}
+              </div>
+
+              {/* EYE SELECTOR PILLS */}
+              <div className="flex gap-1.5 mt-6">
+                {[
+                  { id: 'single', label: '👁️ Cyclops' },
+                  { id: 'dual', label: '👀 Dual' },
+                  { id: 'tri', label: '🔺 Tri-Visor' },
+                  { id: 'quad', label: '✨ Quad Gel' }
+                ].map((mode) => (
+                  <button
+                    key={mode.id}
+                    onClick={() => { soundFx.playPop(); setEyeMode(mode.id); }}
+                    className={`px-3 py-1 rounded-full text-[11px] font-mono font-bold border transition-all cursor-pointer ${
+                      eyeMode === mode.id
+                        ? 'bg-indigo-600 text-white border-indigo-400'
+                        : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+                    }`}
+                  >
+                    {mode.label}
+                  </button>
+                ))}
+              </div>
+
+              {debugMode && (
+                <div className="w-full bg-slate-950 p-3 rounded-xl border border-cyan-500/30 text-xs font-mono space-y-1.5 mt-4">
+                  <div className="text-cyan-300 font-bold border-b border-cyan-500/20 pb-1">⚡ REALTIME TELEMETRY</div>
+                  <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-300">
+                    <div>VISCOSITY: 4.85 cP</div>
+                    <div>TENSION: 72.4 mN/m</div>
+                    <div>EYE COUNT: {eyeMode.toUpperCase()}</div>
+                    <div>STATUS: OPTIMAL</div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-2xl font-extrabold text-white uppercase">Viscosity & Shape Sliders</h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Top-Left ({tl}%)</label>
+                  <input type="range" min="20" max="80" value={tl} onChange={(e) => setTl(Number(e.target.value))} className="w-full accent-indigo-500 cursor-pointer" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Top-Right ({tr}%)</label>
+                  <input type="range" min="20" max="80" value={tr} onChange={(e) => setTr(Number(e.target.value))} className="w-full accent-indigo-500 cursor-pointer" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Bottom-Right ({br}%)</label>
+                  <input type="range" min="20" max="80" value={br} onChange={(e) => setBr(Number(e.target.value))} className="w-full accent-indigo-500 cursor-pointer" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Bottom-Left ({bl}%)</label>
+                  <input type="range" min="20" max="80" value={bl} onChange={(e) => setBl(Number(e.target.value))} className="w-full accent-indigo-500 cursor-pointer" />
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <span className="text-xs font-bold text-slate-400 uppercase block mb-2">Preset Themes</span>
+                <div className="grid grid-cols-2 gap-2">
+                  {PRESETS.map((p) => (
+                    <button
+                      key={p.name}
+                      onClick={() => {
+                        soundFx.playPop();
+                        setColorStart(p.start);
+                        setColorEnd(p.end);
+                        setTl(p.shape[0]); setTr(p.shape[1]); setBr(p.shape[2]); setBl(p.shape[3]);
+                      }}
+                      className="px-3 py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 text-xs font-mono rounded-xl cursor-pointer"
+                    >
+                      {p.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* AUDIO SYNTHESIZER TEST PAD */}
+              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2">
+                <span className="text-xs font-mono font-bold text-indigo-400 uppercase block">🔊 Web Audio Gel Synthesizer Test Pad</span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <button onClick={() => soundFx.playSquish()} className="bg-slate-900 hover:bg-indigo-950 text-indigo-300 border border-slate-800 hover:border-indigo-500 px-2.5 py-2 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer">
+                    💧 Squish
+                  </button>
+                  <button onClick={() => soundFx.playPop()} className="bg-slate-900 hover:bg-indigo-950 text-indigo-300 border border-slate-800 hover:border-indigo-500 px-2.5 py-2 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer">
+                    🎈 Pop
+                  </button>
+                  <button onClick={() => soundFx.playBounce()} className="bg-slate-900 hover:bg-indigo-950 text-indigo-300 border border-slate-800 hover:border-indigo-500 px-2.5 py-2 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer">
+                    🏀 Bounce
+                  </button>
+                  <button onClick={() => soundFx.playScan()} className="bg-slate-900 hover:bg-indigo-950 text-indigo-300 border border-slate-800 hover:border-indigo-500 px-2.5 py-2 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer">
+                    📡 Radar Scan
+                  </button>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`border-radius: ${shapeString};`);
+                  soundFx.playPop();
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase py-3 rounded-full text-xs shadow-lg cursor-pointer"
+              >
+                {copied ? '✔ CSS Border-Radius Copied!' : '📋 Copy Gel CSS Code'}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // --- MAIN APP ENTRY ---
+    function App() {
+      const [activeTab, setActiveTab] = useState('home');
+      const [user, setUser] = useState(() => {
+        try { return JSON.parse(localStorage.getItem('blob_user_profile')); } catch { return null; }
+      });
+      const [isShareOpen, setIsShareOpen] = useState(false);
+      const [isBounceInOpen, setIsBounceInOpen] = useState(false);
+      const [isDiplomaOpen, setIsDiplomaOpen] = useState(false);
+
+      return (
+        <div className="min-h-screen flex flex-col justify-between">
+          <Header
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            onOpenShare={() => setIsShareOpen(true)}
+            user={user}
+            onOpenBounceIn={() => setIsBounceInOpen(true)}
+          />
+
+          <main className="max-w-[1000px] w-full mx-auto px-4 sm:px-6 py-8 flex-1">
+            {activeTab === 'home' && <HomeTab onNavigate={setActiveTab} />}
+            {activeTab === 'facts' && <BlobFactsTab onOpenDiploma={() => setIsDiplomaOpen(true)} />}
+            {activeTab === 'boogie' && <BoogieVaultTab />}
+            {activeTab === 'games' && <GamesTab />}
+            {activeTab === 'lab' && <BlobLabTab />}
+          </main>
+
+          {/* DIPLOMA MODAL */}
+          <DiplomaModal
+            isOpen={isDiplomaOpen}
+            onClose={() => setIsDiplomaOpen(false)}
+            defaultName={user ? user.username : '@GooeyGamer'}
+          />
+
+          {/* SHARE MODAL */}
+          {isShareOpen && (
+            <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fadeIn">
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 sm:p-8 space-y-5 shadow-2xl relative">
+                <button
+                  onClick={() => setIsShareOpen(false)}
+                  className="absolute top-5 right-5 text-slate-400 hover:text-white font-black text-xl cursor-pointer"
+                >
+                  ✕
+                </button>
+                <div className="flex items-center gap-2 text-[#818cf8] font-extrabold text-xl uppercase tracking-tight">
+                  🔗 Share Blobsearch.com
+                </div>
+                <p className="text-slate-300 text-sm leading-relaxed">
+                  Spread the unrigid liquid truth with fellow amorphous enthusiasts!
+                </p>
+
+                {/* Copy URL */}
+                <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 flex items-center justify-between gap-3">
+                  <span className="text-xs font-mono text-slate-300 truncate">
+                    {window.location.href}
+                  </span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(window.location.href);
+                      soundFx.playPop();
+                      alert('Website URL copied to clipboard!');
+                    }}
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase px-4 py-2 rounded-full text-xs border border-indigo-400/30 transition-all cursor-pointer shrink-0 shadow-md"
+                  >
+                    📋 Copy Link
+                  </button>
+                </div>
+
+                {/* Download Standalone Single File Button */}
+                <div className="bg-slate-950/90 p-4 rounded-2xl border border-indigo-500/30 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase text-white flex items-center gap-1.5">
+                      💾 Standalone Single File
+                    </span>
+                    <span className="text-[10px] font-mono bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded border border-indigo-800">
+                      Zero Dependencies
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Download this entire website as one standalone .html file. You can open and run it offline on any device without internet or servers!
+                  </p>
+                  <button
+                    onClick={() => {
+                      soundFx.playPop();
+                      const blob = new Blob([document.documentElement.outerHTML], { type: 'text/html;charset=utf-8' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = 'blobsearch_standalone.html';
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold uppercase py-3 rounded-full text-xs shadow-lg shadow-emerald-600/30 transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    📥 Download Complete Standalone HTML File
+                  </button>
+                </div>
+
+                <div className="pt-2 border-t border-slate-800">
+                  <button
+                    onClick={() => { setIsShareOpen(false); setIsDiplomaOpen(true); }}
+                    className="w-full bg-indigo-950 hover:bg-indigo-900 text-indigo-300 border border-indigo-500/40 font-bold uppercase py-2.5 rounded-full text-xs cursor-pointer transition-all"
+                  >
+                    🎓 Open Official Diploma Generator
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* BOUNCE IN MODAL */}
+          {isBounceInOpen && (
+            <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fadeIn">
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 sm:p-8 space-y-4 shadow-2xl relative">
+                <button
+                  onClick={() => setIsBounceInOpen(false)}
+                  className="absolute top-4 right-4 text-slate-400 hover:text-white font-black text-lg cursor-pointer"
+                >
+                  ✕
+                </button>
+                <div className="text-center">
+                  <div className="w-14 h-14 mx-auto mb-2 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-2xl shadow-xl animate-wobble">
+                    🦠
+                  </div>
+                  <h3 className="text-2xl font-extrabold uppercase text-white tracking-tight">
+                    {user ? 'Blobologist Profile' : 'Bounce In To Blobsearch'}
+                  </h3>
+                  <p className="text-slate-400 text-xs mt-1">
+                    {user ? 'Your official registered protoplasmic credentials' : 'Create your Blob Alias to unlock researcher status'}
+                  </p>
+                </div>
+
+                {user ? (
+                  <div className="space-y-4 bg-slate-950 p-4 rounded-2xl border border-indigo-500/30">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                      <div>
+                        <h4 className="text-white font-bold text-base">{user.username}</h4>
+                        <span className="text-xs text-indigo-400 font-mono">{user.title}</span>
+                      </div>
+                      <span className="bg-emerald-950 text-emerald-300 border border-emerald-500/40 text-[10px] font-mono px-2 py-0.5 rounded-full">
+                        ACTIVE
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-400 font-mono">
+                      <span>Protoplasm XP:</span>
+                      <span className="text-white font-bold">{user.xp || 500} XP</span>
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        onClick={() => {
+                          soundFx.playSquish();
+                          setUser(null);
+                          localStorage.removeItem('blob_user_profile');
+                          setIsBounceInOpen(false);
+                        }}
+                        className="flex-1 bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-800 text-xs font-bold uppercase py-2.5 rounded-full cursor-pointer transition-all"
+                      >
+                        Bounce Out
+                      </button>
+                      <button
+                        onClick={() => setIsBounceInOpen(false)}
+                        className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold uppercase py-2.5 rounded-full cursor-pointer transition-all"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const username = e.target.username.value.trim() || '@GooeyGamer';
+                      const u = {
+                        username: username.startsWith('@') ? username : '@' + username,
+                        title: e.target.title.value || 'Senior Protoplasm Researcher',
+                        xp: 500
+                      };
+                      setUser(u);
+                      localStorage.setItem('blob_user_profile', JSON.stringify(u));
+                      soundFx.playBounce(2);
+                      setIsBounceInOpen(false);
+                    }}
+                    className="space-y-3"
+                  >
+                    <div>
+                      <label className="block text-xs font-bold uppercase text-slate-300 mb-1">
+                        Blob Alias
+                      </label>
+                      <input
+                        name="username"
+                        required
+                        placeholder="@GooeyGamer"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-sm focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold uppercase text-slate-300 mb-1">
+                        Researcher Title
+                      </label>
+                      <select
+                        name="title"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-indigo-500"
+                      >
+                        <option value="Senior Protoplasm Researcher">🧪 Senior Protoplasm Researcher</option>
+                        <option value="Master Boogie Ball Fighter">🥊 Master Boogie Ball Fighter</option>
+                        <option value="Quantum Fluid Specialist">🌌 Quantum Fluid Specialist</option>
+                        <option value="Supreme Blobologist">🦠 Supreme Blobologist</option>
+                      </select>
+                    </div>
+                    <button
+                      type="submit"
+                      className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold uppercase py-3 rounded-full text-xs shadow-lg shadow-indigo-500/25 cursor-pointer transition-all mt-2"
+                    >
+                      ✨ Bounce In Now
+                    </button>
+                  </form>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* FOOTER */}
+          <footer className="text-center py-12 px-5 mt-16 border-t border-slate-800 bg-slate-900/90 backdrop-blur-xl space-y-6">
+            {/* DAILY BLOB WISDOM QUOTE ROTATOR */}
+            {(() => {
+              const quotes = [
+                '“Geometry is a cage. Embrace the liquid lifestyle.”',
+                '“A square has 4 corners. A blob has infinite potential.”',
+                '“Boogies are blobs so they count.”',
+                '“No rigid structure. Total adaptation.”',
+                '“Slime molds navigated the Tokyo subway system faster than supercomputers.”'
+              ];
+              const [qIdx, setQIdx] = useState(0);
+
+              return (
+                <div
+                  onClick={() => { soundFx.playSquish(); setQIdx((qIdx + 1) % quotes.length); }}
+                  className="max-w-xl mx-auto bg-slate-950 p-4 sm:p-5 rounded-2xl border border-slate-800 cursor-pointer hover:border-indigo-500/50 transition-colors group shadow-lg"
+                >
+                  <p className="text-slate-200 italic font-medium text-sm sm:text-base group-hover:text-white transition-colors">
+                    {quotes[qIdx]}
+                  </p>
+                  <span className="text-[10px] uppercase tracking-widest text-indigo-400 font-bold block mt-2">
+                    👆 Click for Daily Blob Wisdom
+                  </span>
+                </div>
+              );
+            })()}
+
+            <div className="flex flex-wrap justify-center items-center gap-4 sm:gap-6 text-xs font-bold text-slate-400 uppercase tracking-wider">
+              <button onClick={() => { soundFx.playSquish(); setActiveTab('home'); }} className="hover:text-indigo-300 transition-colors cursor-pointer">
+                Home
+              </button>
+              <button onClick={() => { soundFx.playSquish(); setActiveTab('facts'); }} className="hover:text-indigo-300 transition-colors cursor-pointer">
+                Blob Facts
+              </button>
+              <button onClick={() => { soundFx.playSquish(); setActiveTab('boogie'); }} className="hover:text-indigo-300 transition-colors cursor-pointer">
+                The Boogie Vault
+              </button>
+              <button onClick={() => { soundFx.playSquish(); setActiveTab('games'); }} className="hover:text-indigo-300 transition-colors cursor-pointer">
+                Blob Games
+              </button>
+              <button onClick={() => { soundFx.playSquish(); setActiveTab('lab'); }} className="hover:text-indigo-300 transition-colors cursor-pointer">
+                Blob Lab
+              </button>
+              <button
+                onClick={() => {
+                  soundFx.playPop();
+                  const blob = new Blob([document.documentElement.outerHTML], { type: 'text/html;charset=utf-8' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'blobsearch_standalone.html';
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }}
+                className="text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer flex items-center gap-1 border border-emerald-500/30 px-3 py-1 rounded-full bg-emerald-950/50"
+              >
+                💾 Download Standalone File (.html)
+              </button>
+            </div>
+
+            <div className="text-xs text-slate-400 font-normal flex items-center justify-center gap-1.5 flex-wrap">
+              <span>Crafted with ❤️ and a complete lack of rigid geometric boundaries for</span>
+              <span className="font-bold text-slate-200">Blobsearch.com</span>
+            </div>
+          </footer>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
